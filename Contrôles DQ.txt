@@ -1,0 +1,554 @@
+-> Préliminaires :                             
+
+import findspark                               
+findspark.init()
+import pyspark
+from pyspark import SparkContext
+sc = SparkContext("local", "Hello World App")
+from pyspark.sql import SparkSession
+spark = SparkSession(sc)
+from pyspark.sql.functions import col
+import pyspark.sql.functions as F
+col_rejetee = ""
+mot_rejet = ""
+nom_table = ""
+from datetime import date
+today = date.today()
+columns = ['NOM_TABLE', 'COL_REJETEE', 'ANC_VAL','MOT_REJET','DATE_REJET','VAL_CLE_FONC','NUM_LIGNE']
+vals = [(0; 0; 0; 0; 0; 0; 0)]
+dfr = spark.createDataFrame(vals, columns)
+
+
+
+
+
+						CREDIT_AMORT
+
+
+
+
+
+-> Charger le fichier :
+
+nom_table = "CREDIT_AMORT"
+df = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('CREDIT_AMORT.csv')
+
+
+
+-> Doublons : 
+
+col_rejetee = "IDF_NUM_DOSS"
+mot_rejet = "DOUBLON"
+dfdi=df.groupBy("IDF_NUM_DOSS").count().filter("count > 1")
+dfd = dfdi.join(df,dfdi.IDF_NUM_DOSS == df.IDF_NUM_DOSS)
+for i in range(dfd.count()):   
+    newRow = spark.createDataFrame([(nom_table, col_rejetee, dfd.collect()[i][0], mot_rejet,today.strftime("%d/%m/%Y"),dfd.collect()[i][0],dfd.collect()[i][9])], columns)
+    dfr = dfr.union(newRow)
+dfr.toPandas().to_csv('t_rejets.csv', sep=';', index=False)
+
+
+
+-> Valeurs obligatoires :
+
+mot_rejet = "VALEURS OBLIGATOIRES"
+L=df.columns
+x=""
+for i in range(len(L)):
+    x=L[i]
+    dfo=df.filter(F.col(x).isNull())
+    for j in range(dfo.count()):
+        newRow = spark.createDataFrame([(nom_table, x, 'null', mot_rejet,today.strftime("%d/%m/%Y"),dfo.collect()[j][0],dfo.collect()[j][7])], columns)
+        dfr = dfr.union(newRow)
+dfr.toPandas().to_csv('t_rejets.csv', sep=';', index=False)
+
+
+-> Valeurs permises :
+
+df = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('CREDIT_AMORT.csv').filter('COD_SIT_DOSS IS NOT NULL')
+col_rejetee = "COD_SIT_DOSS"
+mot_rejet = "VALEURS PERMISES"
+dfpi = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('EDD_PARAM.csv')
+dfpi=dfpi.filter('NOM_TABLE == "CREDIT_AMORT"')
+dfi=df.select('IDF_NUM_DOSS', 'COD_SIT_DOSS', 'NUM_LIGNE')
+dfp=dfi.join(dfpi, col('COD_SIT_DOSS') == col('COD_SOP'), "left").filter('COD_SOP IS NULL')
+for i in range(dfp.count()):
+    newRow = spark.createDataFrame([(nom_table, col_rejetee, dfp.collect()[i][1], mot_rejet,today.strftime("%d/%m/%Y"),dfp.collect()[i][0],dfp.collect()[i][2])], columns)
+    dfr = dfr.union(newRow)
+dfr.toPandas().to_csv('t_rejets.csv', sep=';', index=False)
+
+
+
+
+
+
+						IDCE_AUTORISATION
+
+
+
+
+-> Charger le fichier :
+
+nom_table = "IDCE_AUTORISATION"
+df2 = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('IDCE_AUTORISATION.csv')
+
+
+
+-> Valeurs obligatoires :
+
+mot_rejet = "VALEURS OBLIGATOIRES"
+df2oi=df2.select('IDF_REF_AUTORISATION','MNT_AUTORISATION','NUM_LIGNE')
+L=df2oi.columns
+x=""
+for i in range(len(L)):
+    x=L[i]
+    dfo2=df2oi.filter(F.col(x).isNull())
+    for j in range(dfo2.count()):
+        if dfo2.collect()[j][0] is None :
+            newRow = spark.createDataFrame([(nom_table, x, 'null', mot_rejet,today.strftime("%d/%m/%Y"),'null',dfo2.collect()[j][2])], columns)
+            dfr = dfr.union(newRow)
+        elif dfo2.collect()[j][0] is not None :
+            newRow = spark.createDataFrame([(nom_table, x, 'null', mot_rejet,today.strftime("%d/%m/%Y"),dfo2.collect()[j][0],dfo2.collect()[j][2])], columns)
+            dfr = dfr.union(newRow)
+dfr.toPandas().to_csv('t_rejets.csv', sep=';', index=False)
+
+
+
+
+-> Valeurs permises :
+
+col_rejetee = "COD_ETAT"
+mot_rejet = "VALEURS PERMISES"
+df2pi = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('EDD_PARAM.csv')
+df2pi=df2pi.filter('NOM_TABLE == "IDCE_AUTORISATION"')
+df2i=df2.select('IDF_REF_AUTORISATION', 'COD_ETAT', 'NUM_LIGNE')
+df2p=df2i.join(df2pi, col('COD_ETAT') == col('COD_SOP'), "left").filter('COD_SOP IS NULL')
+for i in range(dfp.count()):
+    newRow = spark.createDataFrame([(nom_table, col_rejetee, dfp.collect()[i][1], mot_rejet,today.strftime("%d/%m/%Y"),dfp.collect()[i][0],dfp.collect()[i][2])], columns)
+    dfr = dfr.union(newRow)
+dfr.toPandas().to_csv('t_rejets.csv', sep=';', index=False)
+
+
+
+
+
+
+
+						IDCE_DOSSIER
+
+
+
+-> Charger le fichier :
+
+nom_table = "IDCE_DOSSIER"
+df3 = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('IDCE_DOSSIER.csv')
+
+
+
+-> Doublons :
+
+col_rejetee = "IDF_NUM_DOSSIER"
+mot_rejet = "DOUBLON"
+dfd3i=df3.groupBy("IDF_NUM_DOSSIER").count().filter("count > 1")
+dfd3 = dfd3i.join(df3,dfd3i.IDF_NUM_DOSS == df3.IDF_NUM_DOSSIER)
+for i in range(dfd3.count()):   
+    newRow = spark.createDataFrame([(nom_table, col_rejetee, dfd3.collect()[i][0], mot_rejet,today.strftime("%d/%m/%Y"),dfd3.collect()[i][0],dfd3.collect()[i][5])], columns)
+    dfr = dfr.union(newRow)
+dfr.toPandas().to_csv('t_rejets.csv', sep=';', index=False)
+
+
+
+-> Valeurs obligatoires :
+
+mot_rejet = "VALEURS OBLIGATOIRES"
+Li=df3.columns
+L=[]
+L=L+[Li[0]]+[Li[2]]
+x=""
+for i in range(len(L)):
+    x=L[i]
+    dfo3=df3.filter(F.col(x).isNull())
+    for j in range(dfo3.count()):
+        if dfo3.collect()[j][0] is None :
+            newRow = spark.createDataFrame([(nom_table, x, 'null', mot_rejet,today.strftime("%d/%m/%Y"),'null', dfo3.collect()[j][3])], columns)
+            dfr = dfr.union(newRow)
+        elif dfo3.collect()[j][0] is not None :
+            newRow = spark.createDataFrame([(nom_table, x, 'null', mot_rejet,today.strftime("%d/%m/%Y"),dfo3.collect()[j][0],dfo3.collect()[j][3])], columns)
+            dfr = dfr.union(newRow)
+dfr.toPandas().to_csv('t_rejets.csv', sep=';', index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+						GARANTIE_DETAIL
+
+
+
+-> Charger le fichier :
+
+nom_table = "GARANTIE_DETAIL"
+df4 = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('GARANTIE_DETAIL.csv')
+
+
+
+-> Doublons :
+
+col_rejetee = "IDF_NUM_CTR_GARANTIE"
+mot_rejet = "DOUBLON"
+dfd4i=df4.groupBy("IDF_NUM_CTR_GARANTIE").count().filter("count > 1")
+dfd4 = dfd4i.join(df4,dfd4i.IDF_NUM_CTR_GARANT == df4.IDF_NUM_CTR_GARANTIE)
+for i in range(dfd4.count()):   
+    newRow = spark.createDataFrame([(nom_table, col_rejetee, dfd4.collect()[i][0], mot_rejet,today.strftime("%d/%m/%Y"),dfd4.collect()[i][0],dfd4.collect()[i][4])], columns)
+    dfr = dfr.union(newRow)
+dfr.toPandas().to_csv('t_rejets.csv', sep=';', index=False)
+
+
+
+
+-> Valeurs obligatoires :
+
+mot_rejet = "VALEURS OBLIGATOIRES"
+L=df4.columns
+L=L
+x=""
+for i in range(len(L)):
+    x=L[i]
+    dfo4=df4.filter(F.col(x).isNull())
+    for j in range(dfo4.count()):
+        if dfo4.collect()[j][0] is None :
+            newRow = spark.createDataFrame([(nom_table, x, 'null', mot_rejet,today.strftime("%d/%m/%Y"),'null', dfo4.collect()[j][2])], columns)
+            dfr = dfr.union(newRow)
+        elif dfo4.collect()[j][0] is not None :
+            newRow = spark.createDataFrame([(nom_table, x, 'null', mot_rejet,today.strftime("%d/%m/%Y"),dfo4.collect()[j][0],dfo4.collect()[j][2])], columns)
+            dfr = dfr.union(newRow)
+dfr.toPandas().to_csv('t_rejets.csv', sep=';', index=False)
+
+
+
+-> Valeurs permises :
+
+col_rejetee = "COD_TYP_GARANT"
+mot_rejet = "VALEURS PERMISES"
+df_param = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('EDD_PARAM.csv')
+df_param = df_param.filter('NOM_TABLE == "GARANTIE_DETAIL"')
+dfp4_1=df_param.join(df4, col('COD_SOP') == col('COD_TYP_GARANT'), "right").filter('COD_SOP IS NULL')
+for i in range(dfp4_1.count()):
+    newRow = spark.createDataFrame([(nom_table, col_rejetee, dfp4_1.collect()[i][5], mot_rejet,today.strftime("%d/%m/%Y"),dfp4_1.collect()[i][4],dfp4_1.collect()[i][6])], columns)
+    dfr = dfr.union(newRow)
+dfp4_2=df_param.join(df4, col('COD_SOP') == col('COD_OBJET_GARANTIE'), "right").filter('COD_SOP IS NULL')
+for i in range(dfp4_2.count()):
+    newRow = spark.createDataFrame([(nom_table, col_rejetee, dfp4_2.collect()[i][5], mot_rejet,today.strftime("%d/%m/%Y"),dfp4_2.collect()[i][4],dfp4_2.collect()[i][6])], columns)
+    dfr = dfr.union(newRow)
+dfr.toPandas().to_csv('t_rejets.csv', sep=';', index=False)
+
+
+
+
+
+
+
+
+
+						GARANTIE_CONTRAT
+
+
+
+-> Charger le fichier :
+
+nom_table = "GARANTIE_CONTRAT"
+df5 = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('GARANTIE_CONTRAT.csv')
+
+
+
+-> Doublons :
+col_rejetee = "IDF_NUM_CTR_GARANTIE + IDF_REF_EXT_CREDIT"
+mot_rejet = "DOUBLONS"
+dfd5i = df5.groupBy('IDF_NUM_CTR_GARANTIE','IDF_REF_EXT_CREDIT').count().filter('count > 1')
+dfd5 = dfd5i.join(df5,(dfd5i.IDF_NUM_CTR_GARANTIE == df5.IDF_NUM_CTR_GARANTIE) & (dfd5i.IDF_REF_EXT_CREDIT == df5.IDF_REF_EXT_CREDIT) )
+for i in range(dfd5.count()):   
+    newRow = spark.createDataFrame([(nom_table, col_rejetee, dfd5.collect()[i][0] +" + "+ dfd5.collect()[i][1], mot_rejet,today.strftime("%d/%m/%Y"),dfd5.collect()[i][0] +" + "+ dfd5.collect()[i][1],dfd5.collect()[i][5])], columns)
+    dfr = dfr.union(newRow)
+dfr.toPandas().to_csv('t_rejets.csv', sep=';', index=False)
+
+
+-> Valeurs obligatoires :
+
+mot_rejet = "VALEURS OBLIGATOIRES"
+dfo5=df5.filter('IDF_NUM_CTR_GARANTIE IS NULL OR IDF_REF_EXT_CREDIT IS NULL')
+for j in range(dfo5.count()):
+    if dfo5.collect()[j][0] is None and dfo5.collect()[j][1] is None :
+        newRow = spark.createDataFrame([(nom_table, x, 'null'+"+"+'null', mot_rejet,today.strftime("%d/%m/%Y"),'null'+"+"+'null', dfo5.collect()[j][2])], columns)
+        dfr = dfr.union(newRow)
+    elif dfo5.collect()[j][0] is not None and  dfo5.collect()[j][1] is None :
+        newRow = spark.createDataFrame([(nom_table, x, dfo5.collect()[j][0] +"+"+'null', mot_rejet,today.strftime("%d/%m/%Y"),dfo5.collect()[j][0]+"+"+'null',dfo5.collect()[j][2])], columns)
+        dfr = dfr.union(newRow)
+    elif dfo5.collect()[j][0] is None and  dfo5.collect()[j][1] is not None :
+        newRow = spark.createDataFrame([(nom_table, x, 'null'+"+"+dfo5.collect()[j][1], mot_rejet,today.strftime("%d/%m/%Y"),'null'+"+"+dfo5.collect()[j][1],dfo5.collect()[j][2])], columns)
+        dfr = dfr.union(newRow)
+dfr.toPandas().to_csv('t_rejets.csv', sep=';', index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+						CREDIT_NON_AMORT
+
+
+
+-> Charger le fichier :
+
+nom_table = "CREDIT_NON_AMORT"
+df6 = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('CREDIT_NON_AMORT.csv')
+
+
+
+-> Doublons :
+
+col_rejetee = "IDF_REF_AUTO"
+mot_rejet = "DOUBLON"
+dfd6i=df6.groupBy("IDF_REF_AUTO").count().filter("count > 1")
+dfd6 = dfd6i.join(df6,dfd6i.IDF_REF_AUTO == df6.IDF_REF_AUTO)
+for i in range(dfd6.count()):   
+    newRow = spark.createDataFrame([(nom_table, col_rejetee, dfd6.collect()[i][0], mot_rejet,today.strftime("%d/%m/%Y"),dfd6.collect()[i][0],dfd6.collect()[i][8])], columns)
+    dfr = dfr.union(newRow)
+dfr.toPandas().to_csv('t_rejets.csv', sep=';', index=False)
+
+-> Valeurs obligatoires :
+
+mot_rejet = "VALEURS OBLIGATOIRES"
+df6 = df6.filter('COD_ETAT_AUTO != "OUV")
+L=df6.columns
+x=""
+for i in range(len(L)-1):
+    x=L[i]
+    dfo6=df6.filter(F.col(x).isNull())
+    for j in range(dfo6.count()):
+        if dfo6.collect()[j][0] is None :
+            newRow = spark.createDataFrame([(nom_table, x, 'null', mot_rejet,today.strftime("%d/%m/%Y"),'null', dfo6.collect()[j][6])], columns)
+            dfr = dfr.union(newRow)
+        elif dfo6.collect()[j][0] is not None :
+            newRow = spark.createDataFrame([(nom_table, x, 'null', mot_rejet,today.strftime("%d/%m/%Y"),dfo6.collect()[j][0],dfo6.collect()[j][6])], columns)
+            dfr = dfr.union(newRow)
+dfr.toPandas().to_csv('t_rejets.csv', sep=';', index=False)
+
+
+
+-> Valeurs permises :
+
+col_rejetee = "COD_ETAT_AUTO"
+mot_rejet = "VALEURS PERMISES"
+df_param = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('EDD_PARAM.csv')
+df_param = df_param.filter('NOM_TABLE == "CREDIT_NON_AMORT"')
+dfp6=df_param.join(df6, col('COD_SOP') == col('COD_ETAT_AUTO'), "right").filter('COD_SOP IS NULL')
+for i in range(dfp6.count()):
+    newRow = spark.createDataFrame([(nom_table, col_rejetee, dfp6.collect()[i][9], mot_rejet,today.strftime("%d/%m/%Y"),dfp6.collect()[i][4],dfp6.collect()[i][10])], columns)
+    dfr = dfr.union(newRow)
+dfr.toPandas().to_csv('t_rejets.csv', sep=';', index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+						GARANTIE_TIERS
+
+
+
+-> Charger le fichier :
+
+nom_table = "GARANTIE_TIERS"
+df7 = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('GARANTIE_TIERS.csv')
+
+
+
+-> Doublons :
+
+col_rejetee = "IDF_NUM_CTR_GARANTIE + IDF_NUM_TIERS"
+mot_rejet = "DOUBLONS"
+dfd7i = df7.groupBy('IDF_NUM_CTR_GARANTIE','IDF_NUM_TIERS').count().filter('count > 1')
+dfd7 = dfd7i.join(df7,(dfd7i.IDF_NUM_CTR_GARANTIE == df7.IDF_NUM_CTR_GARANTIE) & (dfd7i.IDF_NUM_TIERS == df7.IDF_NUM_TIERS) )
+for i in range(dfd7.count()):   
+    newRow = spark.createDataFrame([(nom_table, col_rejetee, dfd7.collect()[i][0] +" + "+ dfd7.collect()[i][1], mot_rejet,today.strftime("%d/%m/%Y"),dfd7.collect()[i][0] +" + "+ dfd7.collect()[i][1],dfd7.collect()[i][5])], columns)
+    dfr = dfr.union(newRow)
+dfr.toPandas().to_csv('t_rejets.csv', sep=';', index=False)
+
+
+
+-> Valeurs obligatoires :
+
+mot_rejet = "VALEURS OBLIGATOIRES"
+dfo7=df7.filter('IDF_NUM_CTR_GARANTIE IS NULL OR IDF_NUM_TIERS IS NULL')
+for j in range(dfo7.count()):
+    if dfo7.collect()[j][0] is None and dfo7.collect()[j][1] is None :
+        newRow = spark.createDataFrame([(nom_table, x, 'null'+"+"+'null', mot_rejet,today.strftime("%d/%m/%Y"),'null'+"+"+'null', dfo7.collect()[j][2])], columns)
+        dfr = dfr.union(newRow)
+    elif dfo7.collect()[j][0] is not None and  dfo7.collect()[j][1] is None :
+        newRow = spark.createDataFrame([(nom_table, x, dfo7.collect()[j][0] +"+"+'null', mot_rejet,today.strftime("%d/%m/%Y"),dfo7.collect()[j][0]+"+"+'null',dfo7.collect()[j][2])], columns)
+        dfr = dfr.union(newRow)
+    elif dfo7.collect()[j][0] is None and  dfo7.collect()[j][1] is not None :
+        newRow = spark.createDataFrame([(nom_table, x, 'null'+"+"+dfo7.collect()[j][1], mot_rejet,today.strftime("%d/%m/%Y"),'null'+"7"+dfo7.collect()[j][1],dfo7.collect()[j][2])], columns)
+        dfr = dfr.union(newRow)
+dfr.toPandas().to_csv('t_rejets.csv', sep=';', index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+						TC3
+
+
+
+
+columns = ['IDF_NUM_DOSS','MNT_CREDIT','COD_PRODUIT','MNT_SOMME_TOT_REST_DU','COD_SIT_DOSS','DATE_REALISATION_REELLE','DATE_ECHEANCE','NUM_LIGNE']
+vals = [(0, 0, 0, 0, 0, 0, 0, 0)]
+df_tc3 = spark.createDataFrame(vals, columns)
+df = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('CREDIT_AMORT_200000.csv')
+df2 = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('IDCE_AUTORISATION.csv')
+dftc3i = df.filter('COD_PRODUIT in ("TAMDE","STTPE", "TAMAE", "TAMCR")')
+dftc3=dftc3i.join(df2, col('IDF_NUM_DOSS') == col('REFERENCE_SECONDAIRE'),"left").filter('REFERENCE_SECONDAIRE IS NULL')
+for i in range(dftc3.count()):   
+    newRow = spark.createDataFrame([(dftc3.collect()[i][0], dftc3.collect()[i][1], dftc3.collect()[i][2], dftc3.collect()[i][3],dftc3.collect()[i][4],dftc3.collect()[i][5],dftc3.collect()[i][6], dftc3.collect()[i][7])], columns)
+    df_tc3 = df_tc3.union(newRow)
+df_tc3.toPandas().to_csv('t_rejets_tc3.csv', sep=';', index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+						TC4
+
+
+
+columns = ['IDF_REF_AUTO','MNT_AUTO_TOT_MAD','REF_PRODUIT','DATE_COMITE','DATE_ECHEANCE','COD_ETAT_AUTO','NUM_LIGNE']
+vals = [(0, 0, 0, 0, 0, 0, 0)]
+df_tc4 = spark.createDataFrame(vals, columns)
+df4 = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('GARANTIE_DETAIL.csv')
+dftc4ii = df4.filter('COD_TYP_GARANT IN ("O1", "O2")')
+df5 = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('GARANTIE_CONTRAT.csv')
+dftc4i = dftc4ii.join(df5, dftc4ii.IDF_NUM_CTR_GARANTIE == df5.IDF_NUM_CTR_GARANTIE).select('IDF_REF_EXT_CREDIT')
+df6 = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('CREDIT_NON_AMORT.csv')
+dftc4 = df6.join(dftc4i, col('IDF_REF_AUTO') == col('IDF_REF_EXT_CREDIT'))
+df2 = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('IDCE_AUTORISATION.csv')
+df_tc4i = dftc4.join(df2, col('IDF_REF_AUTO') == col('REFERENCE_SECONDAIRE'), "left").filter('REFERENCE_SECONDAIRE IS NULL')
+df_tc4i = df_tc4i.limit(3)
+for i in range(df_tc4i.count()):   
+    newRow = spark.createDataFrame([(df_tc4i.collect()[i][0], df_tc4i.collect()[i][1], df_tc4i.collect()[i][2], df_tc4i.collect()[i][3],df_tc4i.collect()[i][4],df_tc4i.collect()[i][5],df_tc4i.collect()[i][6])], columns)
+    df_tc4 = df_tc4.union(newRow)
+df_tc4.toPandas().to_csv('t_rejets_tc4.csv', sep=';', index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+						TC5
+
+df7 = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('GARANTIE_TIERS.csv')
+df4 = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('GARANTIE_DETAIL.csv')
+df4_2 = df4.filter('COD_OBJET_GARANTIE == "TE" AND COD_TYPE_GARANT in ("O1","O2")')
+dftc5_1 = df4.join(df7, df4.IDF_NUM_CTR_GARANTIE == df7.IDF_NUM_CTR_GARANTIE).select('IDF_NUM_TIERS').distinct()
+
+df2 = spark.read.format('csv').option('delimiter',';').option('header',True).option('encoding','UTF-8').load('IDCE_AUTORISATION.csv')
+dftc5_2 = df2.filter('CODE_PRODUIT in ("B 370TAMCR M","B 370TAMDE M","B 370TAMAE M","B 370STTPE M"').select('NUM_TIERS')
+
+df_tc5 = dftc5_1.subtract(dftc5_2)
+
+
+
+
+
+
+
+
+
+
+
+
+
+- GARANTIE_DETAIL -> COD_TYP_GARANT -> 43281 rejets (échantillon de 50 lignes dans t_rejets)
+
+- CREDIT_NON_AMORT : (Valeurs obligatoires)
+
+			-> REF_PRODUIT : 1311 rejets (échantillon de 3 lignes dans t_rejets)
+			-> DATE_COMITE : 421 rejets (échantillon de 3 lignes dans t_rejets)
+			-> DATE_ECHEANCE : 4055 rejets (échantillon de 3 lignes dans t_rejets)
+
+- TC4 -> 682 rejets (échantillon de 3 lignes dans t_rejets_tc4)
+
+- TC5 -> 197884 rejets (échantillon de 10 lignes dans t_rejets_tc5)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
